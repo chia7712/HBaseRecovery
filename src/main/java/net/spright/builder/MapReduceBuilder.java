@@ -40,30 +40,29 @@ import net.spright.salter.FixedRowSalter;
 import net.spright.salter.TimeInterval;
 import net.spright.shadow.STableName;
 import net.spright.test.RConstants;
-
-public class MapReduceBuilder extends HFileBuilder
-{
-    private static 	final int REDUCERS_FACTOR = 1;
-    private 		final int reducers;
-    public MapReduceBuilder(Configuration configuration)
-    {
+/**
+ *
+ * @author Tsai ChiaPing <chia7712@gmail.com>
+ */
+public class MapReduceBuilder extends HFileBuilder {
+    private static final int REDUCERS_FACTOR = 1;
+    private final int reducers;
+    public MapReduceBuilder(Configuration configuration) {
         this(configuration, -1);
     }
-    public MapReduceBuilder(Configuration configuration, int reducers)
-    {
+    public MapReduceBuilder(Configuration configuration, int reducers) {
         super(configuration);
         this.reducers = reducers <= 0 ? getTaskTrackers(configuration) * REDUCERS_FACTOR  : reducers;
     }
     @Override
-    public String toString()
-    {
+    public String toString() {
         return this.getClass().toString() + ", reducers = " + reducers;
     }
     @Override
-    protected Report doBuild(STableName stableName, Path outputPath, Salter.Scanner scanner) throws Exception 
-    {
-        if(scanner == null)
-                scanner = FixedRowSalter.createScanner(stableName, new TimeInterval(), null);
+    protected Report doBuild(STableName stableName, Path outputPath, Salter.Scanner scanner) throws Exception {
+        if(scanner == null) {
+            scanner = FixedRowSalter.createScanner(stableName, new TimeInterval(), null);
+        }
         final int regions = getRegionsInRange(configuration, stableName.toString());
         Scan[] scans = scanner.createScans(regions, RConstants.CACHING);
         //set Job
@@ -97,44 +96,35 @@ public class MapReduceBuilder extends HFileBuilder
         final long startTime = System.currentTimeMillis();
         job.waitForCompletion(true);
         final long stopTime = System.currentTimeMillis();
-        return new Report(configuration, outputPath)
-        {
+        return new Report(configuration, outputPath) {
             @Override
-            public String getMetrics() 
-            {
+            public String getMetrics()  {
                 return this.getClass().toString()
                     + "\texecution time\t" + getExecutionTime()
                     + "\tReducers\t" + reducers;
             }
             @Override
-            public long getExecutionTime() 
-            {
+            public long getExecutionTime() {
                 return stopTime - startTime;
             }
 
             @Override
-            public String getName()
-            {
+            public String getName() {
                 return this.getClass().getName();
             }
         };
     }
-    private static class RecoveryMapper extends TableMapper<ImmutableBytesWritable, KeyValue>
-    {
+    private static class RecoveryMapper extends TableMapper<ImmutableBytesWritable, KeyValue> {
         private final ImmutableBytesWritable writable = new ImmutableBytesWritable();
         private final Salter.Decoder decoder = FixedRowSalter.createDecoder();
         @Override
-        protected void cleanup(Context context) throws IOException, InterruptedException 
-        {
+        protected void cleanup(Context context) throws IOException, InterruptedException {
         }
         @Override
-        protected void map(ImmutableBytesWritable row, Result result, Context context) throws IOException, InterruptedException
-        {
+        protected void map(ImmutableBytesWritable row, Result result, Context context) throws IOException, InterruptedException {
             decoder.decode(result.list());
-            for(List<KeyValue> keyValueSet : decoder.take())
-            {
-                for(KeyValue keyValue : keyValueSet)
-                {
+            for(List<KeyValue> keyValueSet : decoder.take()) {
+                for(KeyValue keyValue : keyValueSet) {
                     writable.set(keyValue.getRow());
                     context.write(writable, keyValue);
                 }
@@ -142,94 +132,79 @@ public class MapReduceBuilder extends HFileBuilder
             decoder.clear();
         }
     }
-    private static class RecoveryReducer extends Reducer<ImmutableBytesWritable, KeyValue, ImmutableBytesWritable, KeyValue> 
-    {
-        private final Set<KeyValue> keyValueSet = new TreeSet<KeyValue>(KeyValue.COMPARATOR);
+    private static class RecoveryReducer extends Reducer<ImmutableBytesWritable, KeyValue, ImmutableBytesWritable, KeyValue> {
+        private final Set<KeyValue> keyValueSet = new TreeSet(KeyValue.COMPARATOR);
         @Override
-        protected void reduce(ImmutableBytesWritable row, java.lang.Iterable<KeyValue> kvs, Reducer<ImmutableBytesWritable, KeyValue, ImmutableBytesWritable, KeyValue>.Context context) throws java.io.IOException, InterruptedException 
-        {
-            for(KeyValue kv: kvs) 
-            {
+        protected void reduce(ImmutableBytesWritable row, 
+                java.lang.Iterable<KeyValue> kvs, 
+                Reducer<ImmutableBytesWritable, 
+                KeyValue, ImmutableBytesWritable, 
+                KeyValue>.Context context) throws java.io.IOException, InterruptedException {
+            for(KeyValue kv: kvs) {
                 keyValueSet.add(kv.clone());
             }
             context.setStatus("Read " + keyValueSet.getClass());
             int index = 0;
-            for(KeyValue kv: keyValueSet) 
-            {
+            for(KeyValue kv: keyValueSet) {
                 context.write(row, kv);
-                if(index > 0 && index % 100 == 0) 
+                if(index > 0 && index % 100 == 0) {
                     context.setStatus("Wrote " + index);
+                }
             }
             keyValueSet.clear();
         }
     }
-    private static class HFileOutputFormat extends FileOutputFormat<ImmutableBytesWritable, KeyValue>
-    {
+    private static class HFileOutputFormat extends FileOutputFormat<ImmutableBytesWritable, KeyValue> {
         @Override
-        public RecordWriter<ImmutableBytesWritable, KeyValue> getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException 
-        {
+        public RecordWriter<ImmutableBytesWritable, KeyValue> getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException {
             final Path outputPath = FileOutputFormat.getOutputPath(context);
             final Path outputdir = new FileOutputCommitter(outputPath, context).getWorkPath();
             final Configuration configuration = context.getConfiguration();
             final HFileWriter writer = HFileWriterFactory.createHFileWriter(configuration, outputdir);
-            return new RecordWriter<ImmutableBytesWritable, KeyValue>() 
-            {
-
+            return new RecordWriter<ImmutableBytesWritable, KeyValue>() {
                 @Override
-                public void close(TaskAttemptContext arg0) throws IOException,InterruptedException 
-                {
+                public void close(TaskAttemptContext arg0) throws IOException,InterruptedException {
                     writer.close();
-
                 }
 
                 @Override
-                public void write(ImmutableBytesWritable row, KeyValue keyValue)throws IOException, InterruptedException 
-                {
+                public void write(ImmutableBytesWritable row, KeyValue keyValue)throws IOException, InterruptedException {
                     writer.write(keyValue);
                 }
 
             };
         }
     }
-    private static int getTaskTrackers(Configuration configuration)
-    {
+    private static int getTaskTrackers(Configuration configuration) {
         JobConf jobConf = new JobConf(configuration);
-        try
-        {
+        try {
             JobClient client = new JobClient(jobConf);
             ClusterStatus statur = client.getClusterStatus();
             return statur.getTaskTrackers();
         }
-        catch(IOException e)
-        {
+        catch(IOException e) {
             return 4;
         }
     }
-    private static void initTableMapperJob(List<Scan> scans, Class<? extends TableMapper<ImmutableBytesWritable, KeyValue>> mapper, Class<? extends ImmutableBytesWritable> outputKeyClass, Class<? extends Writable> outputValueClass, Job job) throws IOException 
-    {
+    private static void initTableMapperJob(List<Scan> scans, Class<? extends TableMapper<ImmutableBytesWritable, KeyValue>> mapper, 
+            Class<? extends ImmutableBytesWritable> outputKeyClass, 
+            Class<? extends Writable> outputValueClass, 
+            Job job) throws IOException {
         job.setInputFormatClass(MultiTableInputFormat.class);
         job.setMapOutputValueClass(outputValueClass);
         job.setMapOutputKeyClass(outputKeyClass);
         job.setMapperClass(mapper);
-        List<String> scanStrings = new ArrayList<String>();
-        for (Scan scan : scans) 
-        {
+        List<String> scanStrings = new ArrayList();
+        for (Scan scan : scans) {
             scanStrings.add(convertScanToString(scan));
         }
         job.getConfiguration().setStrings(MultiTableInputFormat.SCANS, scanStrings.toArray(new String[scanStrings.size()]));
     }
-    private static String convertScanToString(Scan scan) throws IOException 
-    {
+    private static String convertScanToString(Scan scan) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(out);
-        try
-        {
+        try (DataOutputStream dos = new DataOutputStream(out)) {
             scan.write(dos);
             return Base64.encodeBytes(out.toByteArray());
-        }
-        finally
-        {
-            out.close();
         }
     }
 }

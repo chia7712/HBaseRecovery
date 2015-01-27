@@ -14,9 +14,11 @@ import static org.apache.hadoop.hbase.KeyValue.KEY_INFRASTRUCTURE_SIZE;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
-
-public class FixedRowSalter 
-{
+/**
+ *
+ * @author Tsai ChiaPing <chia7712@gmail.com>
+ */
+public class FixedRowSalter {
     public static final int PREFIX_OFFSET = 0;
     public static final int PREFIX_LENGTH = Integer.SIZE / 8;
     public static final int BATCH_ID_OFFSET = PREFIX_OFFSET + PREFIX_LENGTH;
@@ -32,35 +34,27 @@ public class FixedRowSalter
     public static final int ROW_LENGTH_OFFSET = TYPE_OFFSET + TYPE_LENGTH;
     public static final int ROW_LENGTH_LENGTH = Integer.SIZE / 8;
     public static final int SALTING_ROW_SIZE = PREFIX_LENGTH + UUID_LENGTH + TYPE_LENGTH + ROW_LENGTH_LENGTH;
-    public static Salter.Decoder createDecoder()
-    {
+    public static Salter.Decoder createDecoder() {
         return new DecoderImpl();	
     }
-    public static Salter.Decoder createDecoder(long maxHeapSize)
-    {
+    public static Salter.Decoder createDecoder(long maxHeapSize) {
         return new DecoderImpl(maxHeapSize);	
     }
-    public static Salter.Encoder createEncoder(Prefixer prefixer, HdfsUuid.Builder uuidBuilder)
-    {
+    public static Salter.Encoder createEncoder(Prefixer prefixer, HdfsUuid.Builder uuidBuilder) {
         return new EncoderImpl(prefixer, uuidBuilder);
     }
-    public static Salter.Scanner createScanner(STableName stableName, TimeInterval timeInterval, List<byte[]> families)
-    {
+    public static Salter.Scanner createScanner(STableName stableName, TimeInterval timeInterval, List<byte[]> families) {
         return new ScanImpl(stableName, timeInterval, families);
     }
-    private static class DecoderImpl extends Salter.Decoder
-    {
-        public DecoderImpl()
-        {
+    private static class DecoderImpl extends Salter.Decoder {
+        public DecoderImpl() {
             super(-1);
         }
-        public DecoderImpl(long maxHeapSize)
-        {
+        public DecoderImpl(long maxHeapSize) {
             super(maxHeapSize);
         }
         @Override
-        protected KeyValue internalDecode(KeyValue saltingKeyValue)
-        {
+        protected KeyValue internalDecode(KeyValue saltingKeyValue) {
             //check the length of slating row
             int saltingRowLength = saltingKeyValue.getRowLength();
             if(saltingRowLength != (SALTING_ROW_SIZE))
@@ -113,62 +107,16 @@ public class FixedRowSalter
 
             return new KeyValue(bytes, 0, bytes.length);
         }
-//        @Override
-//        protected KeyValue internalDecode(KeyValue saltingKeyValue)
-//        {
-//            //check the length of slating row
-//            int saltingRowLength = saltingKeyValue.getRowLength();
-//            if(saltingRowLength != (SALTING_ROW_SIZE))
-//                    return null;
-//
-//            int saltingRowOffset = saltingKeyValue.getRowOffset();
-//            byte[] saltingBuffer = saltingKeyValue.getBuffer();
-//            //get keyvalue type
-//            KeyValue.Type type = getType(saltingBuffer[saltingRowOffset + TYPE_OFFSET]);
-//            //get the length of original row 
-//            int rowLength = Bytes.toInt(saltingBuffer, saltingRowOffset + ROW_LENGTH_OFFSET, ROW_LENGTH_LENGTH);
-//            //get the length of salting value
-//            int saltingValueLength = saltingKeyValue.getValueLength();
-//            int valueLength =  saltingValueLength - rowLength;
-//            //if the length of salting row is less than length of original row, the salting keyvalue is invalid format.
-//            if(valueLength <= 0)
-//                    return null;
-//            //format check is over, we divide the salting value to row and value.
-//            int saltingValueOffset = saltingKeyValue.getValueOffset();
-//            byte[] row = new byte[rowLength];
-//            System.arraycopy(saltingBuffer, saltingValueOffset, row, 0, rowLength);
-//            byte[] value = new byte[valueLength];
-//            System.arraycopy(saltingBuffer, saltingValueOffset + rowLength, value, 0, valueLength);
-//            return new KeyValue(
-//                row, 
-//                saltingKeyValue.getFamily(), 
-//                saltingKeyValue.getQualifier(), 
-//                saltingKeyValue.getTimestamp(), 
-//                type,
-//                value);
-//        }
-//        private static KeyValue.Type getType(byte typeByte)
-//        {
-//            for(KeyValue.Type type : KeyValue.Type.values())
-//            {
-//                if(type.getCode() == typeByte)
-//                    return type;
-//            }
-//            return null;
-//        }
     }
-    private static class EncoderImpl extends Salter.Encoder
-    {
+    private static class EncoderImpl extends Salter.Encoder {
         private final Prefixer prefixer;
         private final HdfsUuid.Builder uuidBuilder;
-        public EncoderImpl(Prefixer prefixer, HdfsUuid.Builder uuidBuilder)
-        {
+        public EncoderImpl(Prefixer prefixer, HdfsUuid.Builder uuidBuilder) {
             this.prefixer = prefixer;
             this.uuidBuilder = uuidBuilder;
         }
         @Override
-        public void encode(KeyValue keyValue)
-        {
+        public void encode(KeyValue keyValue) {
             final int prefix = prefixer.createPrefix();
             final byte[] oriBuffer = keyValue.getBuffer();
             final int rlength = SALTING_ROW_SIZE;
@@ -216,8 +164,7 @@ public class FixedRowSalter
             }
             catch (IOException ex){}
         }
-        private static byte[] createSaltingRow(KeyValue keyValue, int prefix, HdfsUuid.Builder uuidBuilder)
-        {
+        private static byte[] createSaltingRow(KeyValue keyValue, int prefix, HdfsUuid.Builder uuidBuilder) {
             byte[] saltingRow = new byte[SALTING_ROW_SIZE];
             long batchID = uuidBuilder.getbatchID();
             int regionID = uuidBuilder.getRegionID();
@@ -235,28 +182,13 @@ public class FixedRowSalter
             Bytes.putInt(saltingRow, pos, keyValue.getRowLength());
             return saltingRow;
         }
-//        private static byte[] getSaltingValue(KeyValue keyValue)
-//        {
-//            int valueOffset = keyValue.getValueOffset();
-//            int valueLength = keyValue.getValueLength();
-//            int rowOffset = keyValue.getRowOffset();
-//            int rowLength = keyValue.getRowLength();
-//            byte[] buffer = keyValue.getBuffer();
-//            byte[] saltingValue = new byte[rowLength + valueLength];
-//            System.arraycopy(buffer, rowOffset, saltingValue, 0, rowLength);
-//            System.arraycopy(buffer, valueOffset, saltingValue, rowLength, valueLength);
-//            return saltingValue;
-//        }
     }
-    private static class ScanImpl extends Salter.Scanner  
-    {
-        public ScanImpl(STableName stableName, TimeInterval timeInterval, List<byte[]> families)
-        {
+    private static class ScanImpl extends Salter.Scanner {
+        public ScanImpl(STableName stableName, TimeInterval timeInterval, List<byte[]> families) {
             super(stableName, timeInterval, families);
         }
         @Override
-        public Scan createScan(HRegionInfo regionInfo)
-        {
+        public Scan createScan(HRegionInfo regionInfo) {
             byte[] row = regionInfo.getStartKey();
             if(Bytes.compareTo(row, HConstants.EMPTY_START_ROW) == 0)
                 row = Bytes.toBytes((int)0);
@@ -265,26 +197,21 @@ public class FixedRowSalter
             return createScan(Bytes.toInt(prefix));
         }
         @Override
-        public Scan[] internalCreatScans(int number) 
-        {
-            List<Scan> scanList = new LinkedList<Scan>();
-            for(int index = 0; index != number; ++index)
-            {
+        public Scan[] internalCreatScans(int number) {
+            List<Scan> scanList = new LinkedList();
+            for(int index = 0; index != number; ++index) {
                 scanList.add(createScan(index));
             }
             return scanList.toArray(new Scan[scanList.size()]);
         }
         @Override
-        public TimeInterval createTimeInterval()
-        {
+        public TimeInterval createTimeInterval() {
             return timeInterval.copyOf();
         }
-        private Scan createScan(int prefix)
-        {
+        private Scan createScan(int prefix) {
             byte[] startRow = new byte[SALTING_ROW_SIZE];
             byte[] stopRow = new byte[SALTING_ROW_SIZE];
-            if(timeInterval.getminTimestamp() != TimeInterval.MIN_TIME)
-            {
+            if(timeInterval.getminTimestamp() != TimeInterval.MIN_TIME) {
                 System.arraycopy(
                     Bytes.toBytes(timeInterval.getminTimestamp()), 
                     0, 
@@ -298,17 +225,14 @@ public class FixedRowSalter
                 startRow, 
                 PREFIX_OFFSET, 
                 PREFIX_LENGTH);
-            if(timeInterval.getmaxTimestamp() == TimeInterval.MAX_TIME)
-            {
+            if(timeInterval.getmaxTimestamp() == TimeInterval.MAX_TIME) {
                 System.arraycopy(
                     Bytes.toBytes(prefix + 1), 
                     0, 
                     stopRow, 
                     PREFIX_OFFSET, 
                     PREFIX_LENGTH);
-            }
-            else
-            {
+            } else {
                 Arrays.fill(stopRow, (byte)0xff);
                 System.arraycopy(
                     Bytes.toBytes(timeInterval.getmaxTimestamp()), 
@@ -324,8 +248,9 @@ public class FixedRowSalter
                     PREFIX_LENGTH);
             }
             Scan scan = new Scan(startRow, stopRow);
-            for(byte[] family : families)
+            for(byte[] family : families) {
                 scan.addFamily(family);
+            }
             scan.setAttribute(Scan.SCAN_ATTRIBUTES_TABLE_NAME, stableName.toBytes());
             return scan;
         }

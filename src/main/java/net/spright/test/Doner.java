@@ -6,14 +6,12 @@
 
 package net.spright.test;
 
-import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 
 /**
  *
- * @author Spright <spright@outlook.com>
+ * @author Tsai ChiaPing <chia7712@gmail.com>
  */
-public interface Doner
-{
+public interface Doner {
     public String toDo(String[] remainArgs, Configuration configuration) throws Exception;
 }

@@ -1,6 +1,8 @@
 package net.spright.salter;
-
-public interface Prefixer
-{
+/**
+ *
+ * @author Tsai ChiaPing <chia7712@gmail.com>
+ */
+public interface Prefixer {
     public int createPrefix();
 }

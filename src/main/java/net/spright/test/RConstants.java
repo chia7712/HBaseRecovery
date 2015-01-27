@@ -1,8 +1,10 @@
 package net.spright.test;
 
-
-public class RConstants 
-{
+/**
+ *
+ * @author Tsai ChiaPing <chia7712@gmail.com>
+ */
+public class RConstants {
     public static String RECOVERY_MAX_SORTSIZE = "recovery.max.sortsize";
     public static long DEFAULT_MAX_SORTSIZE = 256 * 1024 * 1024L;
     public static String RECOVERY_HFILE_OUTPUT = "recovery.hfile.output";

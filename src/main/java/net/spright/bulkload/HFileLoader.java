@@ -14,45 +14,40 @@ import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles;
 import org.apache.hadoop.hbase.util.Bytes;
-
-public class HFileLoader 
-{
+/**
+ *
+ * @author Tsai ChiaPing <chia7712@gmail.com>
+ */
+public class HFileLoader {
     private final Configuration configuration;
-    public HFileLoader(Configuration configuration)
-    {
+    public HFileLoader(Configuration configuration) {
         this.configuration = new Configuration(configuration);
     }
-    public void loadHFileToTable(String tableName, Path inputPath) throws Exception
-    {
-        try(HBaseAdmin admin = new HBaseAdmin(configuration))
-        {
-            if(admin.tableExists(tableName))
-            {
+    public void loadHFileToTable(String tableName, Path inputPath) throws Exception {
+        try(HBaseAdmin admin = new HBaseAdmin(configuration)) {
+            if(admin.tableExists(tableName)) {
                 admin.disableTable(tableName);
                 admin.deleteTable(tableName);
             }
             HTableDescriptor tableDesc = new HTableDescriptor(tableName);
-            for(byte[] family : getFamilies(configuration, inputPath))
-            {
+            for(byte[] family : getFamilies(configuration, inputPath)) {
                 tableDesc.addFamily(new HColumnDescriptor(family));
             }
             admin.createTable(tableDesc);
-            try(HTable table = new HTable(configuration, tableName))
-            {
+            try(HTable table = new HTable(configuration, tableName)) {
                 LoadIncrementalHFiles loader = new LoadIncrementalHFiles(configuration);
                 loader.doBulkLoad(inputPath, table);
             }
         }
     }
-    private static List<byte[]> getFamilies(Configuration configuration, Path inputPath) throws IOException
-    {
+    private static List<byte[]> getFamilies(Configuration configuration, Path inputPath) throws IOException {
         FileSystem fs = FileSystem.get(configuration);
         List<byte[]> families = new LinkedList<byte[]>();
-        for(FileStatus status : fs.listStatus(inputPath))
-        {
+        for(FileStatus status : fs.listStatus(inputPath)) {
             String dirName = status.getPath().getName();
-            if(dirName.compareTo("_SUCCESS") == 0 || dirName.compareTo("_logs") == 0)
+            if(dirName.compareTo("_SUCCESS") == 0 || dirName.compareTo("_logs") == 0) {
                 continue;
+            }
             families.add(Bytes.toBytes(dirName));
         }
         return families;

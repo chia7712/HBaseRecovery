@@ -20,36 +20,31 @@ import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.StoreFile.BloomType;
 import org.apache.hadoop.hbase.util.Bytes;
-
-public class HFileWriterFactory 
-{
+/**
+ *
+ * @author Tsai ChiaPing <chia7712@gmail.com>
+ */
+public class HFileWriterFactory {
     public enum Type{SEQUENTIAL_WRITER};
-    public static HFileWriter createHFileWriter(Configuration configuration, Path outputPath) throws IOException
-    {
+    public static HFileWriter createHFileWriter(Configuration configuration, Path outputPath) throws IOException {
         return createHFileWriter(configuration, outputPath, -1);
     }
-    public static HFileWriter createHFileWriter(Configuration configuration, Path outputPath, long maxSize) throws IOException
-    {
+    public static HFileWriter createHFileWriter(Configuration configuration, Path outputPath, long maxSize) throws IOException {
         return createHFileWriter(Type.SEQUENTIAL_WRITER, configuration, outputPath, maxSize);
     }
-    public static HFileWriter createHFileWriter(Type type, Configuration configuration, Path outputPath) throws IOException
-    {
+    public static HFileWriter createHFileWriter(Type type, Configuration configuration, Path outputPath) throws IOException {
         return createHFileWriter(type, configuration, outputPath, -1);
     }
-    public static HFileWriter createHFileWriter(Type type, Configuration configuration, Path outputPath, long maxSize) throws IOException
-    {
-        switch(type)
-        {
+    public static HFileWriter createHFileWriter(Type type, Configuration configuration, Path outputPath, long maxSize) throws IOException {
+        switch(type) {
             case SEQUENTIAL_WRITER:
                 return new SequentialWriterImpl(configuration, outputPath, maxSize);
             default:
                 return new SequentialWriterImpl(configuration, outputPath, maxSize);
-
         }
     }
-    private static class SequentialWriterImpl implements HFileWriter
-    {
-        private final Map<byte [], WriterLength> writers = new TreeMap<byte [], WriterLength>(Bytes.BYTES_COMPARATOR);
+    private static class SequentialWriterImpl implements HFileWriter {
+        private final Map<byte [], WriterLength> writers = new TreeMap(Bytes.BYTES_COMPARATOR);
         private final byte [] now = Bytes.toBytes(System.currentTimeMillis());
         private final Configuration configuration;
         private final FileSystem fs;
@@ -57,18 +52,15 @@ public class HFileWriterFactory
         private final Path outputPath;
         private byte[] previousRow = HConstants.EMPTY_BYTE_ARRAY;
         private boolean rollRequested = false;
-        public SequentialWriterImpl(Configuration configuration, Path outputPath, long maxSize) throws IOException
-        {
+        public SequentialWriterImpl(Configuration configuration, Path outputPath, long maxSize) throws IOException {
             this.configuration = new Configuration(configuration);
             fs = FileSystem.get(configuration);
             this.outputPath = new Path(outputPath.toString());
             this.maxSize = maxSize <= 0 ? RConstants.DEFAULT_MAX_SORTSIZE : maxSize;
         }
         @Override
-        public void write(KeyValue keyValue) throws IOException 
-        {
-            if(keyValue == null) 
-            {
+        public void write(KeyValue keyValue) throws IOException {
+            if(keyValue == null) {
                 rollWriters(writers);
                 rollRequested = false;
                 return;
@@ -78,24 +70,20 @@ public class HFileWriterFactory
             byte [] family = keyValue.getFamily();
             WriterLength wl = this.writers.get(family);
             // If this is a new column family, verify that the directory exists
-            if(wl == null) 
-            {
+            if(wl == null) {
                 fs.mkdirs(new Path(outputPath, Bytes.toString(family)));
             }
-            if(wl != null && wl.written + length >= maxSize) 
-            {
+            if(wl != null && wl.written + length >= maxSize) {
                 this.rollRequested = true;
             }
             //reach the size limit, but it has to put the same row of data together
-            if(rollRequested && Bytes.compareTo(previousRow, row) != 0) 
-            {
+            if(rollRequested && Bytes.compareTo(previousRow, row) != 0) {
                 rollWriters(writers);
                 rollRequested = false;
             }
 
             // create a new HLog writer, if necessary
-            if(wl == null || wl.writer == null) 
-            {
+            if(wl == null || wl.writer == null) {
                 wl = getNewWriter(family, configuration, fs, outputPath);
                 writers.put(family, wl);
             }
@@ -107,17 +95,13 @@ public class HFileWriterFactory
             previousRow = row;
         }
         @Override
-        public void close() throws IOException 
-        {
-            for(WriterLength wl: this.writers.values()) 
-            {
+        public void close() throws IOException {
+            for(WriterLength wl: this.writers.values()) {
                 closeWithFileInfo(wl.writer);
             }
         }
-        private static void closeWithFileInfo(final StoreFile.Writer w) throws IOException 
-        {
-            if (w != null) 
-            {
+        private static void closeWithFileInfo(final StoreFile.Writer w) throws IOException {
+            if (w != null) {
                 w.appendFileInfo(StoreFile.BULKLOAD_TIME_KEY, Bytes.toBytes(System.currentTimeMillis()));
 //	        w.appendFileInfo(StoreFile.BULKLOAD_TASK_KEY, Bytes.toBytes(context.getTaskAttemptID().toString()));
                 w.appendFileInfo(StoreFile.MAJOR_COMPACTION_KEY, Bytes.toBytes(true));
@@ -126,20 +110,16 @@ public class HFileWriterFactory
                 w.close();
             }
         }
-        private static void rollWriters(Map<byte [], WriterLength> writers) throws IOException 
-        {
-            for(WriterLength wl : writers.values()) 
-            {
-                if(wl.writer != null) 
-                {
+        private static void rollWriters(Map<byte [], WriterLength> writers) throws IOException {
+            for(WriterLength wl : writers.values()) {
+                if(wl.writer != null) {
                     closeWithFileInfo(wl.writer);
                 }       
                 wl.writer = null;
                 wl.written = 0;
             }
         }
-        private static WriterLength getNewWriter(byte[] family, Configuration configuration, FileSystem fs, Path outputPath)throws IOException 
-        {
+        private static WriterLength getNewWriter(byte[] family, Configuration configuration, FileSystem fs, Path outputPath)throws IOException {
             WriterLength wl = new WriterLength();
             Path familydir = new Path(outputPath, Bytes.toString(family));
             Configuration tempConf = new Configuration(configuration);
@@ -155,8 +135,7 @@ public class HFileWriterFactory
             .build();
             return wl;
         }
-        private static class WriterLength 
-        {
+        private static class WriterLength {
             private long written;
             private StoreFile.Writer writer;
         }
